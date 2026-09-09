@@ -1,0 +1,57 @@
+&CONTROL
+    calculation = 'md',
+    prefix      = 'Si5_anneal',
+    pseudo_dir  = 'pseudopotentials/',
+    outdir      = './tmp/',
+    nstep       = 150,
+    dt          = 20.0,
+    tprnfor     = .true.,
+    disk_io     = 'low',
+/
+
+&SYSTEM
+    ibrav       = 0,
+    nat         = 5,
+    ntyp        = 1,
+
+    ecutwfc     = 45.0,
+    ecutrho     = 360.0,
+
+    occupations = 'fixed',
+
+    nosym       = .true.,
+    noinv       = .true.,
+/
+
+&ELECTRONS
+    conv_thr         = 1.0d-5,
+    electron_maxstep = 100,
+    mixing_beta      = 0.1,
+    mixing_mode      = 'local-TF',
+/
+
+&IONS
+    ion_dynamics    = 'verlet',
+
+    ion_temperature = 'reduce-T',
+    tempw          = 1800.0,
+    delta_t        = -150.0,
+    nraise         = 15,
+/
+
+ATOMIC_SPECIES
+Si    28.0855    Si.pbe-nl-rrkjus_psl.UPF
+
+CELL_PARAMETERS angstrom
+16.0    0.0     0.0
+0.0     16.0    0.0
+0.0     0.0     16.0
+
+ATOMIC_POSITIONS angstrom
+Si               7.5881776085        7.3889602731        8.0000026571
+Si               9.9118191551        7.3889559067        8.0000057037
+Si               8.7500028718        9.3400329399        7.9999848680
+Si               7.5880875245       11.2910231850        8.0000023346
+Si               9.9119128402       11.2910276953        8.0000044365
+
+K_POINTS gamma
