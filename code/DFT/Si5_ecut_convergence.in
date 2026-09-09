@@ -1,6 +1,6 @@
 &CONTROL
     calculation = 'scf',
-    prefix = 'si5_min1_ecut45',
+    prefix = 'si5_ecut45',
     pseudo_dir = 'pseudopotentials/',
     outdir = './tmp/',
     tprnfor = .true.,
