@@ -41,7 +41,7 @@ boundary f f p
 
 
 # To read the input data file
-read_data /home/merlof/lammps/proj/minimized_${length}_${centerid}.data
+read_data minimized_${length}_${centerid}.data
 
 
 
