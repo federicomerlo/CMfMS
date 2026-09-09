@@ -1,0 +1,154 @@
+
+# Code to minimze the initial structure polymer + membrane
+
+
+# To increase communication cutoff in multiprocessing
+
+comm_modify cutoff 2.0
+
+
+# Necessary variables:
+# --- input file should be 'poly_wall_{length}_{centerid}.data',
+# --- 'length' is the total number of beads in the polymer
+# --- 'centerid' is the id of the monomer that starts in the middle of the pore
+
+variable lenght equal 30
+
+variable centerid equal 16
+
+
+#######################################################################################
+#################################### Definitions ######################################
+#######################################################################################
+
+
+
+
+# Defining units, atom style, dimensions, and boundary condition
+
+units lj
+atom_style molecular
+dimension 2
+boundary f f p
+
+
+
+# To read the input data file
+read_data poly_wall_${lenght}_${centerid}_15.data
+
+
+
+
+# Defining the types of atom being used in the system
+
+group poly type 1
+group wall type 2
+group center id 8
+
+
+
+# Creating reflecting boundaries at the wall
+
+fix xwalls all wall/reflect xlo EDGE xhi EDGE
+fix ywalls all wall/reflect ylo EDGE yhi EDGE
+fix 6 all enforce2d
+
+
+
+
+#######################################################################################
+################################### Interaction Terms #################################
+#######################################################################################
+
+
+# Lennard-Jones pair interaction between particles
+
+pair_style lj/cut 1.1224
+pair_modify shift yes
+pair_coeff 1 1      1.0 1.0
+pair_coeff 1 2      1.0 1.0
+pair_coeff 2 1      1.0 1.0
+pair_coeff 2 2      1.0 1.0
+
+
+
+# Mass of all atoms is 1
+
+mass * 1
+
+
+# FENE potential parameters
+# --- special_bonds: implements for these types of couple interaction only the FENE one (no double LJ)
+# --- bond_coeff args: K (elastic constant); R (max distance); epsilon; sigma
+
+
+bond_style fene
+bond_coeff 1          7.0 2.0 1.0 1.0
+special_bonds fene                           
+angle_style cosine
+angle_coeff 1 0
+
+
+# Fixing the wall position
+
+fix tether_1 wall spring/self 1000 
+
+
+
+
+###########
+# Fixing the middle monomer with the same well used after, but fixed in time
+###########
+
+
+# Fix variables values
+
+variable a equal 40.0
+variable b equal 5
+variable c equal 3.14
+variable xpos atom x
+variable ypos atom y
+
+
+# Define force (-derivative of potential)
+
+variable fx1 atom -v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*(-2*v_b*v_xpos*sin(v_c*v_xpos)+2*v_c*cos(v_c*v_xpos))
+variable fy1 atom 2*v_b*v_ypos*v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*sin(v_c*v_xpos)
+
+
+# Define the Energy
+
+variable potene atom v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*sin(v_c*v_xpos)
+
+
+# Apply the force to the polymer
+
+fix drive_1 poly addforce v_fx1 v_fy1 0.0 energy v_potene
+
+fix_modify drive_1 energy yes
+
+
+
+#######################################################################################
+################################### Minimization ######################################
+#######################################################################################
+
+
+
+# Minimize energy to avoid overlapping particles
+
+minimize 1e-8 1e-10 100000 100000
+
+
+
+#######################################################################################
+######################################## Output #######################################
+#######################################################################################
+
+
+# To create the minimized version of the system
+
+write_data minimized_${lenght}_${centerid}.data
+
+print "Minimized structure saved"
+
