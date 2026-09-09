@@ -1,0 +1,48 @@
+&CONTROL
+    calculation = 'relax',
+    prefix = 'si5_min1',
+    pseudo_dir = '../pseudopotentials/',
+    outdir = './tmp/',
+    tprnfor = .true.,
+    tstress = .false.,
+    etot_conv_thr = 1.0D-5,
+    forc_conv_thr = 1.0D-4,
+    nstep = 200,
+/
+
+&SYSTEM
+    ibrav = 0,
+    nat = 5,
+    ntyp = 1,
+    ecutwfc = 45.0,
+    ecutrho = 360.0,
+    occupations = 'fixed',
+    nosym = .true.,
+/
+
+&ELECTRONS
+    conv_thr = 1.0D-10,
+    electron_maxstep = 100,
+    mixing_beta = 0.7,
+/
+
+&IONS
+    ion_dynamics = 'bfgs',
+/
+
+ATOMIC_SPECIES
+    Si   28.0855   Si.pbe-nl-rrkjus_psl.UPF
+
+CELL_PARAMETERS angstrom
+    16.0   0.0    0.0
+     0.0  16.0    0.0
+     0.0   0.0   16.0
+
+ATOMIC_POSITIONS angstrom
+    Si    8.0    8.0    8.0
+    Si   10.4    8.0    8.0
+    Si    8.0   10.4    8.0
+    Si    8.0    8.0   10.4
+    Si   10.0   10.0   10.0
+
+K_POINTS gamma
