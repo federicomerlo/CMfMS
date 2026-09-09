@@ -1,7 +1,7 @@
 &CONTROL
     calculation = 'relax',
-    prefix = 'si5_min1',
-    pseudo_dir = '../pseudopotentials/',
+    prefix = 'si5_relax',
+    pseudo_dir = 'pseudopotentials/',
     outdir = './tmp/',
     tprnfor = .true.,
     tstress = .false.,
