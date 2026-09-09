@@ -1,0 +1,311 @@
+
+# To study the equilibration of a system composed of a polymer and a membrane.
+# ${i} should be substituted thanks to an appropriate side code or 
+# implementing a loop using LAMMPS.
+
+
+clear
+
+# Run index supplied from side code
+
+
+print "loop number ${i}"
+
+
+
+
+# To increase communication cutoff in multiprocessing
+
+comm_modify cutoff 2.0
+
+
+# Necessary variables:
+# --- input file should be 'minimized_{length}_{centerid}.data', already minimized
+# --- 'length' is the total number of beads in the polymer
+# --- 'centerid' is the id of the monomer that starts in the middle of the pore
+
+
+variable lenght equal 30
+
+variable centerid equal 16
+variable nextid equal v_centerid-1
+
+
+
+#######################################################################################
+#################################### Definitions ######################################
+#######################################################################################
+
+
+# Defining units, atom style, dimensions, and boundary condition
+
+units lj
+atom_style molecular
+dimension 2
+boundary f f p
+
+
+
+# To read the input data file
+read_data minimized_${lenght}_${centerid}.data
+
+
+
+# Defining the types of atom being used in the system
+
+group poly type 1
+group wall type 2
+group center id ${centerid}
+group next id ${nextid}
+
+
+
+# Creating reflecting boundaries at the wall
+
+fix xwalls all wall/reflect xlo EDGE xhi EDGE
+fix ywalls all wall/reflect ylo EDGE yhi EDGE
+fix 6 all enforce2d
+
+
+
+
+#######################################################################################
+################################### Interaction Terms #################################
+#######################################################################################
+
+
+# Lennard-Jones pair interaction between particles
+
+pair_style lj/cut 1.1224
+pair_modify shift yes
+pair_coeff 1 1      1.0 1.0
+pair_coeff 1 2      1.0 1.0
+pair_coeff 2 1      1.0 1.0
+pair_coeff 2 2      1.0 1.0
+
+
+
+# Mass of all atoms is 1
+
+mass * 1
+
+
+
+# FENE potential parameters
+# --- special_bonds: implements for these types of couple interaction only the FENE one (no double LJ)
+# --- bond_coeff args: K (elastic constant); R (max distance); epsilon; sigma
+
+
+bond_style fene
+bond_coeff 1          7.0 2.0 1.0 1.0
+special_bonds fene                           
+angle_style cosine
+angle_coeff 1 0
+
+
+
+
+#######################################################################################
+######################################## Output #######################################
+#######################################################################################
+
+
+thermo 0
+
+
+# To compute the temperature only looking at the polymer (no wall, since it is fixed)
+
+compute myTemp poly temp
+
+thermo_modify temp myTemp
+
+
+# To compute the energy only looking at the polymer (no wall, since it is fixed)
+
+compute myPe all pe/atom
+
+compute myKe all ke/atom
+
+compute myPolyPe poly reduce sum c_myPe
+
+compute myPolyKe poly reduce sum c_myKe
+
+variable myEtotal equal c_myPolyPe + c_myPolyKe
+
+
+
+
+# To compute the average distance between consecutive monomers
+
+compute c_bond poly bond/local dist
+compute c_mean poly reduce ave c_c_bond inputs local
+
+
+
+# To compute the x position of the middle bead called center
+
+compute xpos center property/atom x
+compute c_xpos center reduce ave c_xpos
+
+
+# To compute the x position of the bead that will end up in the center called next
+
+#compute xnext next property/atom x
+#compute c_xnext next reduce ave c_xnext
+
+
+# To compute the end-to-end distance of the polymer
+
+group first id 1
+group last id ${lenght}
+
+compute xfirst first property/atom x
+compute yfirst first property/atom y
+compute xlast last property/atom x
+compute ylast last property/atom y
+
+compute c_xfirst first reduce ave c_xfirst
+compute c_yfirst first reduce ave c_yfirst
+compute c_xlast last reduce ave c_xlast
+compute c_ylast last reduce ave c_ylast
+
+variable endToEnd equal sqrt((c_c_xlast-c_c_xfirst)^2+(c_c_ylast-c_c_yfirst)^2)
+
+
+
+# To compute the radius of gyration of the polymer
+
+compute Rg poly gyration
+
+
+
+# To output the calculated variables
+
+thermo_style custom step c_myTemp c_c_xpos v_myEtotal c_c_mean
+
+#######################################################################################
+################################### Equilibration #####################################
+#######################################################################################
+
+
+
+timestep 0.003
+
+
+
+
+#########################################
+########### Initializations #############
+
+# Setting a random seed
+
+variable seed equal 12345+${i}
+
+
+# Setting random velocities according to the temerature put in the thermostat after
+# (for 2d no z component is given to the bead's velocities)
+
+velocity  all   create    1.2    ${seed}    dist gaussian
+
+
+# Fixing the langevin dynamics parameters
+
+fix int_all_1 all nve
+fix lang_all all langevin 1.2 1.2 1.4 ${seed}         # 3rd arg: damp = m/csi (they fix csi = 0.7) 
+
+
+# Fixing the wall position
+
+velocity wall set 0.0 0.0 0.0
+fix freeze_1 wall setforce 0.0 0.0 0.0
+
+
+
+
+
+###########
+# Fixing the middle monomer with the same well used after, but fixed in time
+###########
+
+
+# Fix variables values
+
+variable a equal 40
+variable b equal 5
+variable c equal 3.14
+variable xpos atom x
+variable ypos atom y
+
+
+# Define force (-derivative of potential)
+
+variable fx1 atom -v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*(-2*v_b*v_xpos*sin(v_c*v_xpos)+2*v_c*cos(v_c*v_xpos))
+variable fy1 atom 2*v_b*v_ypos*v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*sin(v_c*v_xpos)
+
+
+# Define the Potential Energy associated with this force
+
+variable potene_1 atom v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*sin(v_c*v_xpos)
+
+
+
+# Apply the force to the polymer
+
+fix drive_1 poly addforce v_fx1 v_fy1 0 energy v_potene_1
+
+# Make the potential add to the total energy
+
+fix_modify drive_1 energy yes
+
+
+#########################################
+############# Measurments ###############
+
+
+# Name the necessary variables
+
+variable T equal c_myTemp
+variable E equal v_myEtotal
+variable pos equal c_c_xpos
+variable Nevery equal 50000
+
+# Number of stored values for this run
+variable nSamples equal floor(1000000/${Nevery})
+
+# Save all the variables.
+# Each simulation appends one new column.
+# Row index = sampled time during the run.
+
+variable number equal ${i}
+
+variable outfileT string run/40_2D_${lenght}_${centerid}/results_t_${number}.dat
+variable outfileE string run/40_2D_${lenght}_${centerid}/results_e_${number}.dat
+variable outfileX string run/40_2D_${lenght}_${centerid}/results_x_${number}.dat
+variable outfileD string run/40_2D_${lenght}_${centerid}/results_dist_${number}.dat
+variable outfileRe string run/40_2D_${lenght}_${centerid}/results_endtoend_${number}.dat
+variable outfileRg string run/40_2D_${lenght}_${centerid}/results_rg_${number}.dat
+
+fix saveT all ave/time ${Nevery} 1 ${Nevery} v_T file ${outfileT} mode scalar
+fix saveE all ave/time ${Nevery} 1 ${Nevery} v_E file ${outfileE} mode scalar
+fix saveX all ave/time ${Nevery} 1 ${Nevery} v_pos file ${outfileX} mode scalar
+fix saveD all ave/time ${Nevery} 1 ${Nevery} c_c_mean file ${outfileD} mode scalar
+fix saveRe all ave/time ${Nevery} 1 ${Nevery} v_endToEnd file ${outfileRe} mode scalar
+fix saveRg all ave/time ${Nevery} 1 ${Nevery} c_Rg file ${outfileRg} mode scalar
+
+
+
+#########################################
+################# Run ###################
+
+
+
+
+# Number of steps to run
+
+run 5000000
+
+
+
+
+
+
