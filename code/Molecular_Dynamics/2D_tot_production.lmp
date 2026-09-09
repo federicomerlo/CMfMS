@@ -1,0 +1,388 @@
+# Code to generate a polymer in 2D translocating through a memebrane's property
+# and implementation of a Jarzynski Equality method to study free energy differnce 
+
+#echo both
+
+#creating a folder to save crowders configuration file
+#shell mkdir dump
+
+
+# To increase communication cutoff in multiprocessing
+comm_modify cutoff 2.0
+
+
+# Necessary variables:
+# --- input file should be 'minimized__{length}_{centerid}.data', already minimized
+# --- 'length' is the total number of beads in the polymer
+# --- 'centerid' is the id of the monomer that starts in the middle of the pore
+
+
+variable length equal 30
+
+variable centerid equal 16
+variable nextid equal v_centerid-1
+
+
+
+#######################################################################################
+#################################### Definitions ######################################
+#######################################################################################
+
+
+
+
+# Defining units, atom style, dimensions, and boundary condition
+
+units lj
+atom_style molecular
+dimension 2
+boundary f f p
+
+
+
+# To read the input data file
+read_data /home/merlof/lammps/proj/minimized_${length}_${centerid}.data
+
+
+
+
+# Defining the types of atom being used in the system
+
+group poly type 1
+group wall type 2
+group center id ${centerid}
+group next id ${nextid}
+
+
+
+# Creating reflecting boundaries at the wall
+
+fix xwalls all wall/reflect xlo EDGE xhi EDGE
+fix ywalls all wall/reflect ylo EDGE yhi EDGE
+fix 6 all enforce2d
+
+
+
+
+#######################################################################################
+################################### Interaction Terms #################################
+#######################################################################################
+
+
+# Lennard-Jones pair interaction between particles
+
+pair_style lj/cut 1.1224
+pair_modify shift yes
+pair_coeff 1 1      1.0 1.0
+pair_coeff 1 2      1.0 1.0
+pair_coeff 2 1      1.0 1.0
+pair_coeff 2 2      1.0 1.0
+
+
+
+# Mass of all atoms is 1
+
+mass * 1
+
+
+
+# FENE potential parameters:
+# --- special_bonds: implements for these types of couple interaction only the FENE one (no double LJ)
+# --- bond_coeff args: K (elastic constant); R (max distance); epsilon; sigma
+
+
+bond_style fene
+bond_coeff 1          7.0 2.0 1.0 1.0
+special_bonds fene                           
+angle_style cosine
+angle_coeff 1 0
+
+
+
+#######################################################################################
+###################################### Output #########################################
+#######################################################################################
+
+
+
+# To compute the temperature only looking at the polymer (no wall, since it is fixed)
+
+compute myTemp poly temp
+
+thermo_modify temp myTemp
+
+
+# To compute the energy only looking at the polymer (no wall, since it is fixed)
+
+compute myPe all pe/atom
+
+compute myKe all ke/atom
+
+compute myPolyPe poly reduce sum c_myPe
+
+compute myPolyKe poly reduce sum c_myKe
+
+variable myEtotal equal c_myPolyPe + c_myPolyKe
+
+
+
+# To compute the average distance between consecutive monomers of the polymer only
+
+#compute c_bond poly bond/local dist
+#compute c_mean poly reduce ave c_c_bond inputs local
+
+
+
+# To compute the x position of the middle bead, called center
+
+compute xcenter center property/atom x
+compute c_xcenter center reduce ave c_xcenter
+
+
+# To compute the x position of the bead that ends up in the middle, called next
+
+#compute xpos next property/atom x
+#compute c_xpos next reduce ave c_xpos
+
+
+
+# To output the calculated variables
+
+thermo_style custom step c_c_xcenter c_myTemp v_myEtotal  
+
+
+
+#######################################################################################
+################################### Equilibration #####################################
+#######################################################################################
+
+
+thermo 1000
+
+
+timestep 0.003
+
+
+
+#########################################
+########### Initializations #############
+
+
+
+# Setting random velocities according to the temerature put in the thermostat specified after
+# (for 2D no z component is given to the bead's velocities)
+
+velocity  all   create    1.2    28282    dist gaussian
+
+
+# Fixing the Langevin dynamics parameters
+
+fix int_all_1 all nve
+fix lang_all all langevin 1.2 1.2 1.43  28282        # 3rd arg: damp = m/csi (they fix csi = 0.7 => 1/0.7 = 1.43) 
+
+
+# Fixing the wall position
+
+velocity wall set 0.0 0.0 0.0
+fix freeze_1 wall setforce 0.0 0.0 0.0
+
+
+
+
+
+#######################
+# Fixing the middle monomer with the same well used after, but fixed in time
+#######################
+
+
+# Fix variables values
+
+variable a equal 40
+variable b equal 5
+variable c equal 3.14
+variable xpos atom x
+variable ypos atom y
+
+
+# Define force (-derivative of potential)
+
+variable fx1 atom -v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*(-2*v_b*v_xpos*sin(v_c*v_xpos)+2*v_c*cos(v_c*v_xpos))
+variable fy1 atom 2*v_b*v_ypos*v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*sin(v_c*v_xpos)
+
+
+# Define the Potential Energy associated with this force
+
+variable potene_1 atom v_a*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos)*sin(v_c*v_xpos)
+
+
+# Apply the force to the polymer
+
+fix drive_1 poly addforce v_fx1 v_fy1 0.0 energy v_potene_1
+
+
+# Make the potential add to the total energy
+
+fix_modify drive_1 energy yes
+
+
+
+
+#########################################
+############### Dumping #################
+
+
+# Dumping the x and y coordinates for the trajectory in the above specified folder
+
+#dump dump_poly all custom 10000 ./Movie/poly_work_C_movie.lammpstrj id xu yu
+
+
+
+#########################################
+################# Run ###################
+
+
+
+
+# Number of steps to run
+
+run 1000000
+
+
+
+
+#########################################
+############# Measurments ###############
+
+
+# Name the necessary variables for free enrgy differeces
+
+variable T equal c_myTemp
+variable Estart equal v_myEtotal
+
+
+# To collect the energy at the begging of the production, ergo the end of the equilibration
+
+run 0
+
+variable E_start equal ${Estart}
+
+
+
+
+#######################################################################################
+##################################### Production ######################################
+#######################################################################################
+
+
+# restart the timestep to make the time-dependent potential work properly
+
+reset_timestep 0
+
+timestep 0.003
+
+thermo 100
+
+#dump dump_poly all custom 1000 ./Movie/2D_poly_work_C_movie.lammpstrj id xu yu
+
+
+
+#########################################
+############### New Fix #################
+
+
+# Unfix every precedent integrator and thermostat and fix the new one 
+# (no more stochastic and dissipative forces)
+
+unfix int_all_1                               # Old nve integrator
+unfix lang_all                                # Old langevin thermostat 
+unfix freeze_1                                # Old wall's bead's lock
+unfix drive_1                                 # Old central bead lock
+
+
+
+# Resetting integrator
+
+fix int_all_2 all nve
+
+
+# Fixing again the wall position
+
+velocity wall set 0.0 0.0 0.0
+fix freeze_2 wall setforce 0.0 0.0 0.0
+
+
+
+
+###########
+# Applying the time-dependent potential on the central beads
+###########
+
+
+# Fix variables values
+
+variable A equal 40
+variable b equal 5
+variable c equal 3.14
+variable v equal 0.0025            # total time: 400
+variable t equal step*0.003        # variable time restored  
+variable xpos atom x
+variable ypos atom y
+
+
+# Define force (-derivative of potential)
+
+variable fx atom -v_A*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos-PI*v_v*v_t)*(-2*v_b*v_xpos*sin(v_c*v_xpos-PI*v_v*v_t)+2*v_c*cos(v_c*v_xpos-PI*v_v*v_t))
+variable fy atom 2*v_b*v_ypos*v_A*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos-PI*v_v*v_t)*sin(v_c*v_xpos-PI*v_v*v_t)
+
+
+
+# Define the Potential Energy that defines this force
+
+variable potene_2 atom v_A*exp(-v_b*(v_ypos*v_ypos+v_xpos*v_xpos))*sin(v_c*v_xpos-PI*v_v*v_t)*sin(v_c*v_xpos-PI*v_v*v_t)
+
+
+
+# Apply the force only to the polymer
+
+fix drive_2 poly addforce v_fx v_fy 0.0 energy v_potene_2
+
+fix_modify drive_2 energy yes
+
+
+
+#########################################
+################# Run ###################
+
+
+
+#number of steps to run
+
+run 133333
+
+
+
+
+#########################################
+######### Measures Collection ###########
+
+
+# Collect the final variables necessary
+
+variable Eend equal v_myEtotal
+
+run 0
+
+variable E_end equal ${Eend}
+
+variable dE equal ${E_end}-${E_start}
+
+
+
+# Write output
+print "${dE}" 
+
+
+
+
+
+
