@@ -178,7 +178,7 @@ velocity  all   create    1.2    28282    dist gaussian
 # Fixing the Langevin dynamics parameters
 
 fix int_all_1 all nve
-fix lang_all all langevin 1.2 1.2 1.43  28282        # 3rd arg: damp = m/csi (they fix csi = 0.7 => 1/0.7 = 1.43) 
+fix lang_all all langevin 1.2 1.2 1.43  28282        # 3rd arg: damp = m/csi (this implies csi = 0.7, since 1/0.7 = 1.43) 
 
 
 # Fixing the wall position
