@@ -3,7 +3,7 @@ In particular, this study aims to calculate free energy differences thanks to th
 
 First, the study is based on the main code '2D_tot_production.lmp'. It outputs the necessary energy differnce.
 
-Second, to minimize an existing structure use '2D_minimization.lmp'. You can see an example of input file in 'poly_wall_30_16'.
+Second, to minimize an existing structure use '2D_minimization.lmp'. You can see an example of input file in 'poly_wall_30_16.data'.
 
 Third, to study the equilibration phase and other characteristics of the system use '2D_single_equilibration.lmp'.
 
