@@ -1,0 +1,15 @@
+&INPUTPP
+    prefix = 'si5_scf_density',
+    outdir = './tmp/',
+    plot_num = 0,
+    filplot = 'si5.rho',
+/
+
+&PLOT
+    nfile = 1,
+    filepp(1) = 'si5.rho',
+    weight(1) = 1.0,
+    iflag = 3,
+    output_format = 5,
+    fileout = 'si5_rho.xsf'
+/
